@@ -1,0 +1,15 @@
+streamlit
+pandas
+numpy
+plotly
+scikit-learn
+
+# PDF 보고서 생성을 위한 추가 라이브러리
+reportlab>=3.6.0
+Pillow>=9.0.0
+kaleido>=0.2.1
+
+# 선택사항: 더 나은 차트/폰트 지원
+matplotlib>=3.5.0
+seaborn>=0.11.0
+python-docx

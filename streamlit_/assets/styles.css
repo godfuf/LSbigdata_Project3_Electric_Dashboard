@@ -1,0 +1,21 @@
+/* 공공기관 스타일 느낌: 깔끔하고 신뢰감 있게 */
+body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background-color: #f7f9fc;
+    color: #333333;
+}
+
+h1, h2, h3 {
+    color: #003366;
+}
+
+.stApp {
+    padding: 2rem;
+}
+
+.block-container {
+    background-color: #ffffff;
+    padding: 2rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 51, 102, 0.1);
+}
