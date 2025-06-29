@@ -38,17 +38,12 @@ rcParams["axes.unicode_minus"] = False
 # CSS 스타일링 (첫 번째 코드의 메인 헤더 스타일 추가)
 st.markdown("""
 <style>
-    @font-face {
-    font-family: 'NanumGothic';
-    src: url('/usr/share/fonts/truetype/nanum/NanumGothic.ttf') format('truetype');
-    }
-    * { font-family: 'NanumGothic', sans-serif !important; }
-            
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
     
-    * {
+    body, div, p, h1, h2, h3, h4, h5, h6, li, td, th, span, button, a, .stDataFrame, .stButton, .stTextInput, .stTextArea {
         font-family: 'Noto Sans KR', sans-serif;
     }
+    
     
     .stApp { background-color: #fafbfc; }
     
