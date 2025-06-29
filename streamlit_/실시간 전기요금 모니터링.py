@@ -325,11 +325,11 @@ def create_shap_chart():
 def init_state():
     if "data" not in st.session_state:
         st.session_state.data = pd.read_csv(
-            "./models/final_lstm_target.csv", parse_dates=["측정일시"]
+            "streamlit_/models/final_lstm_target.csv", parse_dates=["측정일시"]
         )
     if "feat_data" not in st.session_state:
         st.session_state.feat_data = pd.read_csv(
-            "./models/target_pred_feature_lstm.csv", parse_dates=["측정일시"]
+            "streamlit_/models/target_pred_feature_lstm.csv", parse_dates=["측정일시"]
         )
     if "start_idx" not in st.session_state:
         df = st.session_state.data

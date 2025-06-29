@@ -22,7 +22,7 @@ st.set_page_config(page_title="통합 전력 분석", layout="wide")
 
 
 # data 폴더 경로에서 Nanum.ttf 로드
-font_path = os.path.join(os.getcwd(), "data", "Nanum.ttf")
+font_path = os.path.join(os.getcwd(), "streamlit_", "data", "Nanum.ttf")
 fm.fontManager.addfont(font_path)
 # 폰트 이름은 TTF 내부에 정의된 이름을 따릅니다. 보통 'NanumGothic' 등으로 등록되므로, 아래 출력으로 확인하세요.
 print(fm.FontProperties(fname=font_path).get_name())  # 예: "NanumGothic"
@@ -130,7 +130,7 @@ st.markdown("""
 def load_data():
     """데이터 로드 및 전처리"""
     try:
-        df = pd.read_csv("./data/train.csv")
+        df = pd.read_csv("streamlit_/data/train.csv")
         df["측정일시"] = pd.to_datetime(df["측정일시"])
         df["날짜"] = df["측정일시"].dt.date
         df["시간"] = df["측정일시"].dt.hour
