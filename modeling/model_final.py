@@ -1,8 +1,3 @@
-"""
-완전한 통합 모델 - 딥러닝 5-fold CV 개선 버전
-기존 고급 모델 + 딥러닝 5-fold CV + 완벽한 스태킹 앙상블
-"""
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -45,12 +40,9 @@ import shap
 # =============================================================================
 
 def load_data():
-    """데이터 로딩"""
-    print("📁 데이터 로딩 중...")
-    train = pd.read_csv('./data/train.csv')
-    test = pd.read_csv('./data/test.csv')
+    train = pd.read_csv('../data/train.csv')
+    test = pd.read_csv('../data/test.csv')
     
-    print("=== 데이터 기본 정보 ===")
     print(f"Train 데이터: {train.shape}")
     print(f"Test 데이터: {test.shape}")
     
@@ -61,7 +53,6 @@ def load_data():
 # =============================================================================
 
 def create_basic_features(df):
-    """기본 시간 피처 생성"""
     df['측정일시'] = pd.to_datetime(df['측정일시'])
     df['year'] = df['측정일시'].dt.year
     df['month'] = df['측정일시'].dt.month
@@ -125,10 +116,7 @@ def create_basic_features(df):
 # 3. 1단계: 전력 변수 예측
 # =============================================================================
 
-def predict_power_variables(train, test):
-    """1단계: 전력 변수 예측"""
-    print("\n🔋 1단계: 전력 변수들 예측 중...")
-    
+def predict_power_variables(train, test):    
     train_basic = create_basic_features(train.copy())
     test_basic = create_basic_features(test.copy())
     
@@ -160,19 +148,16 @@ def predict_power_variables(train, test):
     predicted_power_data = {}
     
     for power_var in power_variables:
-        print(f"  📊 {power_var} 예측 중...")
         y_power = train_basic[power_var]
         rf_model.fit(X_basic, y_power)
         test_pred = rf_model.predict(X_test_basic)
         test_pred = np.maximum(test_pred, 0)
         predicted_power_data[power_var] = test_pred
-        print(f"    ✅ 완료 (평균: {test_pred.mean():.2f})")
     
     test_with_power = test_basic.copy()
     for power_var, predictions in predicted_power_data.items():
         test_with_power[power_var] = predictions
     
-    print(f"✅ 1단계 완료!")
     return train_basic, test_with_power
 
 # =============================================================================
@@ -180,9 +165,6 @@ def predict_power_variables(train, test):
 # =============================================================================
 
 def create_power_features(df):
-    """전력 조합 피처 생성"""
-    print("⚡ 전력 조합 피처 생성 중...")
-    
     df['total_power'] = (df['전력사용량(kWh)'] + 
                         df['지상무효전력량(kVarh)'] + 
                         df['진상무효전력량(kVarh)'])
@@ -190,13 +172,10 @@ def create_power_features(df):
     df['power_efficiency'] = df['전력사용량(kWh)'] / (df['탄소배출량(tCO2)'] + 1e-8)
     df['power_quality'] = df['전력사용량(kWh)'] / (df['지상무효전력량(kVarh)'] + df['진상무효전력량(kVarh)'] + 1e-8)
     
-    print("  ✅ 전력 조합 피처 생성 완료")
+    print("전력 조합 피처 생성 완료")
     return df
 
 def create_advanced_features(df):
-    """고급 피처 생성"""
-    print("🚀 고급 피처 생성 중...")
-    
     df = df.sort_values('측정일시').reset_index(drop=True)
     
     core_variables = ['전력사용량(kWh)', 'total_power', 'active_power_ratio', '탄소배출량(tCO2)']
@@ -204,7 +183,6 @@ def create_advanced_features(df):
     feature_count = 0
     
     # 1. Lag 피처
-    print("  📈 Lag 피처 생성...")
     for var in core_variables:
         if var in df.columns:
             for lag in [2, 3, 6, 12, 24]:
@@ -214,7 +192,6 @@ def create_advanced_features(df):
                 feature_count += 1
     
     # 2. Rolling 피처
-    print("  🔄 Rolling 피처 생성...")
     for var in core_variables:
         if var in df.columns:
             for window in [3, 6, 12, 24]:
@@ -237,7 +214,6 @@ def create_advanced_features(df):
                 feature_count += 4
     
     # 3. 비선형 변환
-    print("  📐 비선형 변환...")
     power_vars = ['전력사용량(kWh)', '지상무효전력량(kVarh)', '진상무효전력량(kVarh)']
     for var in power_vars:
         if var in df.columns:
@@ -247,7 +223,6 @@ def create_advanced_features(df):
             feature_count += 3
     
     # 4. 상호작용 피처
-    print("  🔗 상호작용 피처...")
     if '전력사용량(kWh)' in df.columns and '지상무효전력량(kVarh)' in df.columns:
         df['power_interaction'] = df['전력사용량(kWh)'] * df['지상무효전력량(kVarh)']
         df['power_ratio'] = df['전력사용량(kWh)'] / (df['지상무효전력량(kVarh)'] + 1e-8)
@@ -265,22 +240,18 @@ def create_advanced_features(df):
     df['dow_hour'] = df['dayofweek'] * df['hour']
     feature_count += 3
     
-    print(f"  ✅ 총 {feature_count}개 고급 피처 생성 완료!")
+    print(f"  총 {feature_count}개 고급 피처 생성 완료")
     return df
 
 # =============================================================================
 # 5. 피처 중요도 분석
 # =============================================================================
 
-def analyze_feature_importance(models_dict, X_train, y_train, X_val, y_val, feature_names):
-    """피처 중요도 분석"""
-    print("🔍 피처 중요도 분석 중...")
-    
+def analyze_feature_importance(models_dict, X_train, y_train, X_val, y_val, feature_names):    
     results = {}
     
     # 1. 모델별 중요도
     for model_name, model in models_dict.items():
-        print(f"  🤖 {model_name} 중요도 계산 중...")
         model.fit(X_train, y_train)
         
         if hasattr(model, 'feature_importances_'):
@@ -291,7 +262,6 @@ def analyze_feature_importance(models_dict, X_train, y_train, X_val, y_val, feat
             results[f'{model_name}_importance'] = importance_df
     
     # 2. 상관관계 분석
-    print("  📈 상관관계 분석...")
     correlations = []
     for i, feature in enumerate(feature_names):
         corr = abs(np.corrcoef(X_train.iloc[:, i], y_train)[0, 1])
@@ -306,7 +276,6 @@ def analyze_feature_importance(models_dict, X_train, y_train, X_val, y_val, feat
     results['correlation'] = correlation_df
     
     # 3. 순열 중요도
-    print("  🔀 순열 중요도 분석...")
     try:
         best_model = list(models_dict.values())[0]
         best_model.fit(X_train, y_train)
@@ -323,13 +292,12 @@ def analyze_feature_importance(models_dict, X_train, y_train, X_val, y_val, feat
             'importance': perm_importance.importances_mean,
         }).sort_values('importance', ascending=False)
         results['permutation'] = perm_df
-        print("    ✅ 순열 중요도 완료")
+        print("순열 중요도 완료")
         
     except Exception as e:
-        print(f"    ⚠️ 순열 중요도 실패: {e}")
+        print(f"순열 중요도 실패: {e}")
     
     # 4. SHAP 분석
-    print("  🎯 SHAP 분석...")
     try:
         sample_size = min(1000, len(X_train))
         X_sample = X_train.sample(n=sample_size, random_state=42)
@@ -346,16 +314,15 @@ def analyze_feature_importance(models_dict, X_train, y_train, X_val, y_val, feat
             'shap_importance': shap_importance
         }).sort_values('shap_importance', ascending=False)
         results['shap'] = shap_df
-        print("    ✅ SHAP 분석 완료")
+        print("SHAP 분석 완료")
         
     except Exception as e:
-        print(f"    ⚠️ SHAP 분석 실패: {e}")
+        print(f"SHAP 분석 실패: {e}")
     
     return results
 
 def get_top_features(importance_results, top_k=45):
-    """상위 피처 선택"""
-    print(f"\n🎯 상위 {top_k}개 피처 선택")
+    print(f"\n상위 {top_k}개 피처 선택")
     
     consensus_scores = {}
     
@@ -383,35 +350,29 @@ def get_top_features(importance_results, top_k=45):
     
     top_features = consensus_df.head(top_k)
     
-    print("🏆 상위 피처들:")
+    print("상위 피처들:")
     for idx, row in top_features.iterrows():
         print(f"  {idx+1:2d}. {row['feature']:35s} (점수: {row['consensus_score']:.3f})")
-    print(f"  ... 총 {top_k}개 피처 선택됨")
+    print(f"총 {top_k}개 피처 선택됨")
     
     return top_features['feature'].tolist()
 
 # =============================================================================
-# 6. 딥러닝 모델들
+# 6. 딥러닝 모델
 # =============================================================================
 
-def create_deep_learning_data(train_df, test_df, selected_features, sequence_length=48):
-    """딥러닝용 데이터 준비"""
-    print(f"🧠 딥러닝용 데이터 준비 (시퀀스 길이: {sequence_length})")
+def create_deep_learning_data_continuous(train_df, test_df, selected_features, sequence_length=48):
+    print(f"연속 시퀀스 딥러닝용 데이터 준비 (시퀀스 길이: {sequence_length})")
+    print("train(1-11월)과 test(12월) 연결하여 연속적 시퀀스 생성")
     
-    # total_power가 없으면 강제로 생성 (딥러닝용)
-    if 'total_power' not in train_df.columns:
-        print("  ⚡ Train에 total_power 생성 중...")
-        train_df['total_power'] = (train_df['전력사용량(kWh)'] + 
-                                  train_df['지상무효전력량(kVarh)'] + 
-                                  train_df['진상무효전력량(kVarh)'])
+    # total_power가 없으면 강제로 생성
+    for df, name in [(train_df, 'Train'), (test_df, 'Test')]:
+        if 'total_power' not in df.columns:
+            df['total_power'] = (df['전력사용량(kWh)'] + 
+                               df['지상무효전력량(kVarh)'] + 
+                               df['진상무효전력량(kVarh)'])
     
-    if 'total_power' not in test_df.columns:
-        print("  ⚡ Test에 total_power 생성 중...")
-        test_df['total_power'] = (test_df['전력사용량(kWh)'] + 
-                                 test_df['지상무효전력량(kVarh)'] + 
-                                 test_df['진상무효전력량(kVarh)'])
-    
-    # 시계열 피처 정의 (total_power 포함)
+    # 시계열 피처 정의
     time_features = ['전력사용량(kWh)', '탄소배출량(tCO2)', 'total_power', 
                     'hour_sin', 'hour_cos', 'is_verified_peak']
     
@@ -427,43 +388,72 @@ def create_deep_learning_data(train_df, test_df, selected_features, sequence_len
     print(f"  시계열 피처: {len(available_time_features)}개 - {available_time_features}")
     print(f"  정적 피처: {len(static_features)}개")
     
-    # total_power가 포함되었는지 확인
-    if 'total_power' in available_time_features:
-        print("  ✅ total_power 피처 포함됨 (중요도 1등 피처)")
-    else:
-        print("  ⚠️ total_power 피처 누락 - 성능에 영향 있을 수 있음")
+    # train과 test 데이터를 시간 순으로 연결
+    train_sorted = train_df.sort_values('측정일시').reset_index(drop=True)
+    test_sorted = test_df.sort_values('측정일시').reset_index(drop=True)
     
-    def create_sequences(df, target_col=None):
-        df_sorted = df.sort_values('측정일시').reset_index(drop=True)
-        
+    # 연속 데이터셋 생성 (train + test)
+    continuous_df = pd.concat([train_sorted, test_sorted], ignore_index=True).sort_values('측정일시')
+    continuous_df = continuous_df.reset_index(drop=True)
+    
+    print(f"  연속 데이터: {len(continuous_df)} 레코드")
+    print(f"  Train 끝: {train_sorted['측정일시'].max()}")
+    print(f"  Test 시작: {test_sorted['측정일시'].min()}")
+    
+    # 연속 시퀀스 생성 함수
+    def create_sequences_continuous(df, target_col=None, start_idx=0, end_idx=None):
+        if end_idx is None:
+            end_idx = len(df)
+            
         sequences = []
         static_data = []
         targets = []
         
-        for i in range(sequence_length, len(df_sorted)):
-            # 시계열 시퀀스
-            seq = df_sorted[available_time_features].iloc[i-sequence_length:i].values
+        for i in range(start_idx + sequence_length, end_idx):
+            # 시계열 시퀀스 (과거 sequence_length 개 데이터)
+            seq = df[available_time_features].iloc[i-sequence_length:i].values
             sequences.append(seq)
             
-            # 정적 피처
-            static = df_sorted[static_features].iloc[i].values
+            # 정적 피처 (현재 시점)
+            static = df[static_features].iloc[i].values
             static_data.append(static)
             
-            # 타겟
-            if target_col and target_col in df_sorted.columns:
-                targets.append(df_sorted[target_col].iloc[i])
+            # 타겟 (train 데이터에만 존재)
+            if target_col and target_col in df.columns:
+                target_val = df[target_col].iloc[i]
+                if pd.notna(target_val):  # train 데이터인 경우
+                    targets.append(target_val)
+                else:  # test 데이터인 경우
+                    targets.append(None)
         
         sequences = np.array(sequences)
         static_data = np.array(static_data)
-        targets = np.array(targets) if targets else None
         
-        return sequences, static_data, targets
+        # targets에서 None이 아닌 값들만 추출 (train용)
+        valid_targets = [t for t in targets if t is not None]
+        targets_array = np.array(valid_targets) if valid_targets else None
+        
+        return sequences, static_data, targets_array
     
-    # Train 데이터
-    train_seq, train_static, train_targets = create_sequences(train_df, '전기요금(원)')
+    # Train 데이터 범위 찾기
+    train_end_idx = len(train_sorted)
     
-    # Test 데이터
-    test_seq, test_static, _ = create_sequences(test_df)
+    # Train 시퀀스 생성 (연속 데이터에서 train 부분만)
+    train_seq, train_static, train_targets = create_sequences_continuous(
+        continuous_df, '전기요금(원)', 0, train_end_idx
+    )
+    
+    # Test 시퀀스 생성 (연속 데이터에서 test 부분, train 데이터를 활용한 시퀀스 포함)
+    test_start_idx = train_end_idx
+    test_seq, test_static, _ = create_sequences_continuous(
+        continuous_df, None, test_start_idx - sequence_length, len(continuous_df)
+    )
+    
+    # test 시퀀스가 실제 test 데이터 길이와 맞는지 조정
+    expected_test_length = len(test_df)
+    if len(test_seq) > expected_test_length:
+        test_seq = test_seq[-expected_test_length:]
+        test_static = test_static[-expected_test_length:]
     
     print(f"  Train - 시퀀스: {train_seq.shape}, 정적: {train_static.shape}")
     print(f"  Test - 시퀀스: {test_seq.shape}, 정적: {test_static.shape}")
@@ -471,7 +461,7 @@ def create_deep_learning_data(train_df, test_df, selected_features, sequence_len
     return (train_seq, train_static, train_targets), (test_seq, test_static), available_time_features
 
 def build_lstm_model(sequence_shape, static_shape):
-    """LSTM 모델"""
+    # LSTM 모델
     sequence_input = Input(shape=sequence_shape, name='sequence_input')
     lstm1 = LSTM(128, return_sequences=True, dropout=0.2)(sequence_input)
     lstm1 = BatchNormalization()(lstm1)
@@ -494,55 +484,23 @@ def build_lstm_model(sequence_shape, static_shape):
     
     return model
 
-def build_gru_model(sequence_shape, static_shape):
-    """GRU 모델"""
-    sequence_input = Input(shape=sequence_shape, name='sequence_input')
-    gru1 = GRU(128, return_sequences=True, dropout=0.2)(sequence_input)
-    gru1 = BatchNormalization()(gru1)
-    gru2 = GRU(64, dropout=0.2)(gru1)
-    gru2 = BatchNormalization()(gru2)
-    
-    static_input = Input(shape=(static_shape,), name='static_input')
-    static_dense = Dense(64, activation='relu')(static_input)
-    static_dense = Dropout(0.2)(static_dense)
-    
-    combined = Concatenate()([gru2, static_dense])
-    combined = Dense(128, activation='relu')(combined)
-    combined = Dropout(0.3)(combined)
-    combined = Dense(64, activation='relu')(combined)
-    combined = Dropout(0.2)(combined)
-    output = Dense(1, activation='linear')(combined)
-    
-    model = Model(inputs=[sequence_input, static_input], outputs=output)
-    model.compile(optimizer=Adam(learning_rate=0.0005), loss='mae', metrics=['mse'])
-    
-    return model
-
-# def build_transformer_model(sequence_shape, static_shape):
-#     """Transformer 모델"""
+# def build_gru_model(sequence_shape, static_shape):
+#     GRU 모델
 #     sequence_input = Input(shape=sequence_shape, name='sequence_input')
-    
-#     attention_output = MultiHeadAttention(
-#         num_heads=8, key_dim=64, dropout=0.1
-#     )(sequence_input, sequence_input)
-    
-#     attention_output = LayerNormalization()(attention_output + sequence_input)
-    
-#     ffn_output = Dense(256, activation='relu')(attention_output)
-#     ffn_output = Dropout(0.1)(ffn_output)
-#     ffn_output = Dense(sequence_shape[-1])(ffn_output)
-#     ffn_output = LayerNormalization()(ffn_output + attention_output)
-    
-#     pooled = GlobalAveragePooling1D()(ffn_output)
+#     gru1 = GRU(128, return_sequences=True, dropout=0.2)(sequence_input)
+#     gru1 = BatchNormalization()(gru1)
+#     gru2 = GRU(64, dropout=0.2)(gru1)
+#     gru2 = BatchNormalization()(gru2)
     
 #     static_input = Input(shape=(static_shape,), name='static_input')
 #     static_dense = Dense(64, activation='relu')(static_input)
 #     static_dense = Dropout(0.2)(static_dense)
     
-#     combined = Concatenate()([pooled, static_dense])
+#     combined = Concatenate()([gru2, static_dense])
 #     combined = Dense(128, activation='relu')(combined)
 #     combined = Dropout(0.3)(combined)
 #     combined = Dense(64, activation='relu')(combined)
+#     combined = Dropout(0.2)(combined)
 #     output = Dense(1, activation='linear')(combined)
     
 #     model = Model(inputs=[sequence_input, static_input], outputs=output)
@@ -550,18 +508,13 @@ def build_gru_model(sequence_shape, static_shape):
     
 #     return model
 
-
 # =============================================================================
-# 7. 개선된 딥러닝 5-fold CV 학습
+# 7. 딥러닝 5-fold CV 학습
 # =============================================================================
 
 def train_deep_learning_models_with_cv(train_final, test_final, selected_features):
-    """딥러닝 모델들을 5-fold CV로 학습"""
-    print("\n🧠 딥러닝 모델 5-fold CV 학습 시작!")
-    print("=" * 60)
-    
     # 딥러닝용 데이터 준비
-    (train_seq, train_static, train_targets), (test_seq, test_static), time_features = create_deep_learning_data(
+    (train_seq, train_static, train_targets), (test_seq, test_static), time_features = create_deep_learning_data_continuous(
         train_final, test_final, selected_features, sequence_length=48
     )
     
@@ -583,8 +536,7 @@ def train_deep_learning_models_with_cv(train_final, test_final, selected_feature
     # 딥러닝 모델들
     deep_models = {
         'LSTM': build_lstm_model,
-        'GRU': build_gru_model
-        # 'Transformer': build_transformer_model
+        # 'GRU': build_gru_model
     }
     
     # 5-fold 시계열 분할
@@ -593,13 +545,12 @@ def train_deep_learning_models_with_cv(train_final, test_final, selected_feature
     results = {}
     
     for model_name, model_builder in deep_models.items():
-        print(f"\n🧠 {model_name} 5-fold CV 학습 중...")
         
         cv_mae_scores = []
         fold_predictions = []
         
         for fold, (train_idx, val_idx) in enumerate(tscv.split(train_seq)):
-            print(f"  📊 Fold {fold + 1}/5...")
+            print(f"  Fold {fold + 1}/5...")
             
             # Fold별 데이터 분할
             X_seq_tr, X_seq_va = train_seq[train_idx], train_seq[val_idx]
@@ -620,7 +571,7 @@ def train_deep_learning_models_with_cv(train_final, test_final, selected_feature
             model.fit(
                 [X_seq_tr, X_static_tr], y_tr,
                 batch_size=32,
-                epochs=50,  # CV이므로 epochs 줄임
+                epochs=50,
                 validation_data=([X_seq_va, X_static_va], y_va),
                 callbacks=callbacks,
                 verbose=0
@@ -659,7 +610,7 @@ def train_deep_learning_models_with_cv(train_final, test_final, selected_feature
         # 최소값 예측 (가장 좋은 fold의 예측)
         min_predictions = fold_predictions[best_fold_idx]
         
-        print(f"  📊 {model_name} CV 완료:")
+        print(f"  {model_name} CV 완료:")
         print(f"    평균 MAE: {avg_mae:.2f}")
         print(f"    최소 MAE: {min_mae:.2f} (Fold {best_fold_idx + 1})")
         
@@ -683,20 +634,18 @@ def train_deep_learning_models_with_cv(train_final, test_final, selected_feature
     return results
 
 # =============================================================================
-# 8. 메인 학습 함수 (기존 + 개선된 딥러닝)
+# 8. 메인 학습 함수
 # =============================================================================
 
 def train_all_models(train_final, test_final, selected_features):
-    """모든 모델 학습"""
-    print("\n💪 모든 모델 학습 시작!")
-    print("=" * 80)
+    print("\n모든 모델 학습 시작")
     
     # 기존 모델용 데이터 준비
     X_train = train_final[selected_features]
     y_train = train_final['전기요금(원)']
     X_test = test_final[selected_features]
     
-    # 기존 모델들 정의 (최적화된 하이퍼파라미터)
+    # 기존 모델들 정의
     traditional_models = {
         'RandomForest_Optimized': RandomForestRegressor(
             n_estimators=500, max_depth=15, min_samples_split=2,
@@ -718,10 +667,8 @@ def train_all_models(train_final, test_final, selected_features):
     
     results = {}
     
-    # 1. 기존 모델들 학습 (기존 방식 유지)
-    print("🤖 기존 모델들 학습 중...")
+    # 1. 기존 모델들 학습
     for model_name, model in traditional_models.items():
-        print(f"\n  🚀 {model_name} 학습 중...")
         
         # CV 성능 평가
         tscv = TimeSeriesSplit(n_splits=5)
@@ -750,7 +697,7 @@ def train_all_models(train_final, test_final, selected_features):
             'model': model
         }
     
-    # 2. 딥러닝 모델들 학습 (개선된 5-fold CV)
+    # 2. 딥러닝 모델들 학습
     deep_results = train_deep_learning_models_with_cv(train_final, test_final, selected_features)
     
     # 결과 합치기
@@ -763,21 +710,16 @@ def train_all_models(train_final, test_final, selected_features):
 # =============================================================================
 
 def create_perfect_stacking(results, X_train, y_train, X_test):
-    """완벽한 스태킹 앙상블 - 모든 모델 포함"""
-    print("\n🏆 완벽한 스태킹 앙상블 구축 중...")
-    print("=" * 60)
-    print("⏰ 모든 모델로 완벽한 스태킹")
-    
-    print(f"🚀 사용할 모델: {len(results)}개")
+    print(f"사용할 모델: {len(results)}개")
     for name in results.keys():
         if 'Deep' in name:
             method = results[name].get('method', 'unknown')
-            model_type = f"🧠딥러닝({method})"
+            model_type = f"딥러닝({method})"
         else:
-            model_type = "🤖기존"
+            model_type = "기존"
         print(f"  - {model_type} {name}")
     
-    # Level 1: 기존 모델의 CV 예측값 생성
+    # 기존 모델의 CV 예측값 생성
     traditional_results = {k: v for k, v in results.items() if 'Deep' not in k}
     deep_results = {k: v for k, v in results.items() if 'Deep' in k}
     
@@ -790,7 +732,6 @@ def create_perfect_stacking(results, X_train, y_train, X_test):
     # 기존 모델들 - 완전한 CV
     traditional_idx = 0
     for model_name, result in traditional_results.items():
-        print(f"  🔄 {model_name} CV 메타 피처 생성 중...")
         
         model_idx = model_names.index(model_name)
         test_fold_predictions = []
@@ -816,7 +757,6 @@ def create_perfect_stacking(results, X_train, y_train, X_test):
         traditional_idx += 1
     
     # 딥러닝 모델들 - 기존 CV 성능 기반 메타 피처
-    print("  🧠 딥러닝 모델들 메타 피처 생성 중...")
     for model_name, result in deep_results.items():
         model_idx = model_names.index(model_name)
         
@@ -835,8 +775,7 @@ def create_perfect_stacking(results, X_train, y_train, X_test):
         # 테스트 예측은 이미 계산된 값 사용
         test_meta_features[:, model_idx] = result['predictions']
     
-    # Level 2: 메타 모델 학습
-    print("  🎯 메타 모델 학습 중...")
+    # 메타 모델 학습
     meta_model = Ridge(alpha=1.0, random_state=42)
     meta_model.fit(meta_features, y_train)
     
@@ -844,25 +783,25 @@ def create_perfect_stacking(results, X_train, y_train, X_test):
     meta_pred = meta_model.predict(meta_features)
     meta_mae = mean_absolute_error(y_train, meta_pred)
     
-    print(f"  📊 메타 모델 MAE: {meta_mae:.2f}")
+    print(f"  메타 모델 MAE: {meta_mae:.2f}")
     
     # 메타 모델 가중치
     meta_weights = meta_model.coef_
-    print("  📈 모델별 기여도:")
+    print("  모델별 기여도:")
     for name, weight in zip(model_names, meta_weights):
         contribution = abs(weight) / sum(abs(meta_weights)) * 100
         if 'Deep' in name:
             method = results[name].get('method', 'unknown')
-            model_type = f"🧠({method})"
+            model_type = f"딥러닝({method})"
         else:
-            model_type = "🤖"
+            model_type = "기존"
         print(f"    {model_type} {name}: {weight:.3f} ({contribution:.1f}%)")
     
     # 최종 스태킹 예측
     final_stacking_pred = meta_model.predict(test_meta_features)
     final_stacking_pred = np.maximum(final_stacking_pred, 0)
     
-    print(f"  ✅ 전체 모델 스태킹 완료!")
+    print("  전체 모델 스태킹 완료")
     
     return final_stacking_pred, meta_mae
 
@@ -871,9 +810,7 @@ def create_perfect_stacking(results, X_train, y_train, X_test):
 # =============================================================================
 
 def create_final_ensemble(results, X_train, y_train, X_test):
-    """최종 앙상블 생성"""
-    print(f"\n🎯 최종 앙상블 생성 (총 {len(results)}개 모델)")
-    print("=" * 70)
+    print(f"\n최종 앙상블 생성 (총 {len(results)}개 모델)")
     
     # 1. 성능 기반 가중 평균
     total_weight = 0
@@ -890,14 +827,14 @@ def create_final_ensemble(results, X_train, y_train, X_test):
     for model_name in weights:
         weights[model_name] /= total_weight
     
-    print("📊 모델별 가중치:")
+    print("모델별 가중치:")
     for model_name, weight in weights.items():
         mae = results[model_name]['cv_mae']
         if 'Deep' in model_name:
             method = results[model_name].get('method', 'unknown')
             boost = f"({method})"
         else:
-            boost = "⭐" if 'XGBoost' in model_name else ""
+            boost = "^^" if 'XGBoost' in model_name else ""
         print(f"  {model_name:30s}: {weight:.3f} (MAE: {mae:.2f}) {boost}")
     
     # 가중 평균 예측
@@ -914,7 +851,7 @@ def create_final_ensemble(results, X_train, y_train, X_test):
     best_mae = min([result['cv_mae'] for result in results.values()])
     estimated_weighted_mae = best_mae * 0.95  # 앙상블 효과로 5% 개선 추정
     
-    print(f"\n🏆 앙상블 방법 비교:")
+    print(f"\n앙상블 방법 비교:")
     print(f"  가중 평균 - 예상 MAE: ~{estimated_weighted_mae:.2f}")
     print(f"  스태킹     - 실제 MAE: {stacking_mae:.2f}")
     
@@ -922,12 +859,12 @@ def create_final_ensemble(results, X_train, y_train, X_test):
         final_pred = stacking_pred
         final_method = "스태킹"
         final_mae = stacking_mae
-        print(f"🎯 최종 선택: 스태킹 앙상블")
+        print(f"최종 선택: 스태킹 앙상블")
     else:
         final_pred = weighted_pred
         final_method = "가중 평균"
         final_mae = estimated_weighted_mae
-        print(f"🎯 최종 선택: 가중 평균 앙상블")
+        print(f"최종 선택: 가중 평균 앙상블")
     
     return final_pred, final_method, final_mae, weights
 
@@ -936,9 +873,7 @@ def create_final_ensemble(results, X_train, y_train, X_test):
 # =============================================================================
 
 def analyze_model_performance(results, test_data):
-    """모델 성능 분석 및 예측 범위 비교"""
-    print(f"\n📊 모델 성능 및 예측 범위 상세 분석")
-    print("=" * 90)
+    print(f"\n모델 성능 및 예측 범위 상세 분석")
     
     # 성능 및 예측 범위 데이터 수집
     analysis_data = []
@@ -957,13 +892,13 @@ def analyze_model_performance(results, test_data):
         # 모델 타입 분류
         if 'Deep' in model_name:
             if 'Avg' in model_name:
-                model_type = "🧠딥러닝(평균)"
+                model_type = "딥러닝(평균)"
                 base_name = model_name.replace('_Deep_Avg', '')
             else:
-                model_type = "🧠딥러닝(최소)"
+                model_type = "딥러닝(최소)"
                 base_name = model_name.replace('_Deep_Min', '')
         else:
-            model_type = "🤖기존"
+            model_type = "머신러닝"
             base_name = model_name.replace('_Optimized', '')
         
         analysis_data.append({
@@ -983,8 +918,7 @@ def analyze_model_performance(results, test_data):
     analysis_df = pd.DataFrame(analysis_data)
     analysis_df = analysis_df.sort_values('mae')
     
-    print("🏆 모델 성능 순위 (MAE 기준):")
-    print("-" * 90)
+    print("모델 성능 순위 (MAE 기준):")
     for i, row in analysis_df.iterrows():
         print(f"{len(analysis_df) - i:2d}위. {row['type']} {row['base_name']:15s}")
         print(f"     MAE: {row['mae']:7.2f}원 | 예측범위: {row['pred_min']:7.0f}~{row['pred_max']:7.0f}원 (폭:{row['pred_range']:7.0f})")
@@ -992,28 +926,26 @@ def analyze_model_performance(results, test_data):
         print()
     
     # 타입별 성능 비교
-    print("📈 모델 타입별 성능 비교:")
-    print("-" * 50)
+    print("모델 타입별 성능 비교:")
     
-    traditional_models = analysis_df[analysis_df['type'] == '🤖기존']
-    deep_avg_models = analysis_df[analysis_df['type'] == '🧠딥러닝(평균)']
-    deep_min_models = analysis_df[analysis_df['type'] == '🧠딥러닝(최소)']
+    traditional_models = analysis_df[analysis_df['type'] == '머신러닝']
+    deep_avg_models = analysis_df[analysis_df['type'] == '딥러닝(평균)']
+    deep_min_models = analysis_df[analysis_df['type'] == '딥러닝(최소)']
     
     if not traditional_models.empty:
         best_trad = traditional_models.iloc[0]
-        print(f"🤖 최고 기존 모델: {best_trad['base_name']} (MAE: {best_trad['mae']:.2f}원)")
+        print(f"최고 머신러닝 모델: {best_trad['base_name']} (MAE: {best_trad['mae']:.2f}원)")
     
     if not deep_avg_models.empty:
         best_deep_avg = deep_avg_models.iloc[0]
-        print(f"🧠 최고 딥러닝(평균): {best_deep_avg['base_name']} (MAE: {best_deep_avg['mae']:.2f}원)")
+        print(f"최고 딥러닝(평균): {best_deep_avg['base_name']} (MAE: {best_deep_avg['mae']:.2f}원)")
     
     if not deep_min_models.empty:
         best_deep_min = deep_min_models.iloc[0]
-        print(f"🧠 최고 딥러닝(최소): {best_deep_min['base_name']} (MAE: {best_deep_min['mae']:.2f}원)")
+        print(f"최고 딥러닝(최소): {best_deep_min['base_name']} (MAE: {best_deep_min['mae']:.2f}원)")
     
     # 예측 범위 분석
-    print(f"\n📏 예측 범위 분석:")
-    print("-" * 50)
+    print(f"\n예측 범위 분석:")
     overall_min = analysis_df['pred_min'].min()
     overall_max = analysis_df['pred_max'].max()
     print(f"전체 예측 범위: {overall_min:.0f}원 ~ {overall_max:.0f}원")
@@ -1021,16 +953,15 @@ def analyze_model_performance(results, test_data):
     print(f"가장 좁은 예측폭: {analysis_df['pred_range'].min():.0f}원 ({analysis_df.loc[analysis_df['pred_range'].idxmin(), 'base_name']})")
     
     # CV 방식 비교 (딥러닝)
-    print(f"\n🔍 딥러닝 모델 평균 vs 최소값 방식 비교:")
-    print("-" * 50)
+    print(f"\n딥러닝 모델 평균 vs 최소값 방식 비교:")
     
     deep_base_names = set()
     for name in analysis_df[analysis_df['type'].str.contains('딥러닝')]['base_name']:
         deep_base_names.add(name)
     
     for base_name in deep_base_names:
-        avg_model = analysis_df[(analysis_df['base_name'] == base_name) & (analysis_df['type'] == '🧠딥러닝(평균)')]
-        min_model = analysis_df[(analysis_df['base_name'] == base_name) & (analysis_df['type'] == '🧠딥러닝(최소)')]
+        avg_model = analysis_df[(analysis_df['base_name'] == base_name) & (analysis_df['type'] == '딥러닝(평균)')]
+        min_model = analysis_df[(analysis_df['base_name'] == base_name) & (analysis_df['type'] == '딥러닝(최소)')]
         
         if not avg_model.empty and not min_model.empty:
             avg_mae = avg_model.iloc[0]['mae']
@@ -1047,15 +978,12 @@ def analyze_model_performance(results, test_data):
 # =============================================================================
 
 def save_results_enhanced(results, test_data, ensemble_pred, ensemble_method, ensemble_mae, weights):
-    """개선된 결과 저장 - 딥러닝 평균/최소값 방식 모두 저장"""
-    print(f"\n📁 개선된 제출 파일 생성")
-    print("=" * 80)
     
     # 모델 성능 분석
     analysis_df = analyze_model_performance(results, test_data)
     
     # CSV 파일 생성
-    print(f"\n📁 제출 파일 생성:")
+    print(f"\n제출 파일 생성:")
     
     # 개별 모델 제출 파일
     for model_name, result in results.items():
@@ -1071,36 +999,33 @@ def save_results_enhanced(results, test_data, ensemble_pred, ensemble_method, en
             else:
                 filename = f'{model_name.replace("_Deep_Min", "")}_Deep_Minimum.csv'
         else:
-            filename = f'{model_name}_fold_submission.csv'
+            filename = f'{model_name}_submission.csv'
         
         submission.to_csv(filename, index=False)
         mae = result['cv_mae']
-        print(f"  ✅ {filename} (MAE: {mae:.2f}원)")
+        print(f"  {filename} (MAE: {mae:.2f}원)")
     
     # 최종 앙상블 제출 파일
     final_submission = pd.DataFrame({
         'id': test_data['id'],
         'target': ensemble_pred
     })
-    final_submission.to_csv('final_ensemble_fold_submission.csv', index=False)
-    print(f"  🎯 final_ensemble_submission.csv (최종 추천, 예상 MAE: ~{ensemble_mae:.2f}원) ⭐")
+    final_submission.to_csv('final_ensemble_submission.csv', index=False)
+    print(f"  final_ensemble_submission.csv (최종 추천, 예상 MAE: ~{ensemble_mae:.2f}원)")
     
     # 최종 요약
     best_single = analysis_df.iloc[0]
     
-    print(f"\n🎉 최종 요약:")
-    print(f"=" * 80)
-    print(f"🏆 최고 단일 모델: {best_single['type']} {best_single['base_name']} ({best_single['mae']:.2f}원)")
-    print(f"🎯 최종 앙상블: {ensemble_method} (예상 MAE: ~{ensemble_mae:.2f}원)")
+    print(f"\n최종 요약:")
+    print(f"최고 단일 모델: {best_single['type']} {best_single['base_name']} ({best_single['mae']:.2f}원)")
+    print(f"최종 앙상블: {ensemble_method} (예상 MAE: ~{ensemble_mae:.2f}원)")
     
     traditional_count = len([r for r in results.keys() if 'Deep' not in r])
     deep_count = len([r for r in results.keys() if 'Deep' in r])
     
-    print(f"🤖 기존 모델: {traditional_count}개")
-    print(f"🧠 딥러닝 모델: {deep_count}개 (평균/최소값 방식 각각)")
-    print(f"⚡ 총 모델 수: {len(results)}개")
-    print(f"✅ 딥러닝 5-fold CV로 더 신뢰할 수 있는 성능 평가!")
-    print(f"🎯 홍님! 954점에서 800점대 도전 준비 완료!")
+    print(f"기존 모델: {traditional_count}개")
+    print(f"딥러닝 모델: {deep_count}개 (평균/최소값 방식 각각)")
+    print(f"총 모델 수: {len(results)}개")
     
     return final_submission, analysis_df
 
@@ -1110,32 +1035,25 @@ def save_results_enhanced(results, test_data, ensemble_pred, ensemble_method, en
 
 def main():
     """메인 실행 함수"""
-    print("🚀 개선된 완전한 통합 모델 시작!")
-    print("=" * 90)
-    print("1단계: 전력 예측 → 2단계: 고급 피처 생성 → 3단계: 중요도 분석")
-    print("4단계: 기존 4개 + 딥러닝 4개 모델 5-fold CV 학습 → 5단계: 완벽한 스태킹 앙상블")
-    print("🆕 딥러닝 모델도 5-fold CV + 평균/최소값 방식으로 각각 CSV 생성!")
-    print("=" * 90)
-    
+
     # 1. 데이터 로딩
     train, test = load_data()
     
     # 2. 1단계: 전력 변수 예측
     train_with_power, test_with_power = predict_power_variables(train, test)
     
-    # ✅ 특정 시점 데이터 제거 (2024년 11월 7일 00시 00분)
+    # 특정 시점 데이터 제거 (2024년 11월 7일 00시 00분)
     filter_time = pd.Timestamp("2024-11-07 00:00:00")
     train_with_power = train_with_power[train_with_power['측정일시'] != filter_time]
     test_with_power = test_with_power[test_with_power['측정일시'] != filter_time]
 
-    # ✅ 진상역률/지상역률 이진 피처 추가
+    # 진상역률/지상역률 이진 피처 추가
     train_with_power['진상역률_이진'] = (train_with_power['진상역률(%)'] > 90).astype(int)
     train_with_power['지상역률_이진'] = (train_with_power['지상역률(%)'] > 65).astype(int)
     test_with_power['진상역률_이진'] = (test_with_power['진상역률(%)'] > 90).astype(int)
     test_with_power['지상역률_이진'] = (test_with_power['지상역률(%)'] > 65).astype(int)
     
     # 3. 2단계: 고급 피처 생성
-    print("\n💡 2단계: 고급 피처 생성 중...")
     train_final = create_power_features(train_with_power.copy())
     test_final = create_power_features(test_with_power.copy())
     
@@ -1145,7 +1063,6 @@ def main():
     train_final = train_final.drop(columns=drop_cols)
     test_final = test_final.drop(columns=drop_cols)
     
-    print(f"  ✅ 고급 피처 생성 완료!")
     print(f"    Train: {train_final.shape}")
     print(f"    Test: {test_final.shape}")
     
@@ -1161,7 +1078,6 @@ def main():
         test_final['time_category_encoded'] = le_time.transform(test_final['time_category'])
     
     # 5. 3단계: 피처 중요도 분석
-    print("\n🔍 3단계: 피처 중요도 분석 중...")
     
     # 숫자형 피처만 선택
     numeric_columns = train_final.select_dtypes(include=[np.number]).columns.tolist()
@@ -1169,7 +1085,7 @@ def main():
                       if col not in ['전기요금(원)', 'id'] 
                       and col in test_final.columns]
     
-    print(f"  📊 사용 가능 피처: {len(feature_columns)}개")
+    print(f"  사용 가능 피처: {len(feature_columns)}개")
     
     X_all = train_final[feature_columns]
     y_all = train_final['전기요금(원)']
@@ -1196,7 +1112,7 @@ def main():
     # 상위 피처 선택
     selected_features = get_top_features(importance_results, top_k=45)
     
-    print(f"\n🎯 최종 선택된 피처: {len(selected_features)}개")
+    print(f"\n최종 선택된 피처: {len(selected_features)}개")
     
     # 6. 4단계: 모든 모델 학습
     all_results = train_all_models(train_final, test_final, selected_features)
@@ -1214,7 +1130,7 @@ def main():
         all_results, test_final, ensemble_pred, ensemble_method, ensemble_mae, weights
     )
     
-    print(f"\n🎉 개선된 완전한 통합 모델 완료!")
+    print(f"\n개선된 완전한 통합 모델 완료!")
     
     return all_results, selected_features, ensemble_pred, analysis_df
 
